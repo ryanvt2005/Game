@@ -12,6 +12,8 @@ import { AbilitySystem } from "../abilities/AbilitySystem";
 import { playerLoadout } from "../abilities/AbilityConfigs";
 import { PlayerMovementSystem } from "../systems/PlayerMovementSystem";
 import { ThirdPersonCamera } from "../systems/ThirdPersonCamera";
+import { EnemyAISystem } from "../systems/EnemyAISystem";
+import { gruntConfig, bruiserConfig, controllerConfig } from "../entities/enemies/EnemyConfigs";
 
 type Props = {
   className?: string;
@@ -127,6 +129,17 @@ export function GameCanvas({ className, onHudUpdate }: Props) {
       dummyByMesh
     );
 
+    const enemySystem = new EnemyAISystem(scene, combatResolver, playerCombatant, movementSystem);
+    const spawnWave = () => {
+      enemySystem.clear();
+      enemySystem.spawnEnemy(gruntConfig, new Vector3(-10, 1.1, -6), ["hardened"]);
+      enemySystem.spawnEnemy(gruntConfig, new Vector3(-8, 1.1, -2));
+      enemySystem.spawnEnemy(gruntConfig, new Vector3(-6, 1.1, 2));
+      enemySystem.spawnEnemy(bruiserConfig, new Vector3(10, 1.1, 6), ["volatile"]);
+      enemySystem.spawnEnemy(controllerConfig, new Vector3(6, 1.1, -10), ["adaptive"]);
+    };
+    spawnWave();
+
     let fovMode: "normal" | "dash" = "normal";
     let lockOnActive = false;
     const frontDamageSource = new Vector3();
@@ -180,6 +193,9 @@ export function GameCanvas({ className, onHudUpdate }: Props) {
           staggerAmount: 6,
         });
       }
+      if (event.code === "KeyP") {
+        spawnWave();
+      }
     };
     const onMouseDown = (event: MouseEvent) => {
       if (event.button === 0) {
@@ -201,6 +217,7 @@ export function GameCanvas({ className, onHudUpdate }: Props) {
       for (const dummy of dummies) {
         dummy.update(combatResolver, deltaSeconds);
       }
+      enemySystem.update(deltaSeconds);
       if (hudCallbackRef.current) {
         hudTimer += deltaSeconds;
         if (hudTimer >= 0.1) {
@@ -230,6 +247,7 @@ export function GameCanvas({ className, onHudUpdate }: Props) {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("mousedown", onMouseDown);
+      enemySystem.clear();
       movementSystem.dispose();
       cameraSystem.dispose();
       scene.dispose();

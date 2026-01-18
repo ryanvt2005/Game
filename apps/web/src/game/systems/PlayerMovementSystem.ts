@@ -50,6 +50,8 @@ export class PlayerMovementSystem {
   private readonly tmpVector = new Vector3();
   private readonly rotationQuat = new Quaternion();
   private readonly down = new Vector3(0, -1, 0);
+  private slowMultiplier = 1;
+  private slowTimer = 0;
 
   private verticalVelocity = 0;
   private grounded = false;
@@ -93,6 +95,7 @@ export class PlayerMovementSystem {
     this.applyJump();
     this.updateDash(deltaSeconds);
     this.updateImpulse(deltaSeconds);
+    this.updateSlow(deltaSeconds);
     this.updateHorizontalVelocity(deltaSeconds);
     this.updateVerticalVelocity(deltaSeconds);
     this.applyMovement(deltaSeconds);
@@ -104,6 +107,12 @@ export class PlayerMovementSystem {
 
   dispose(): void {
     this.unbindInputFn?.();
+  }
+
+  applySlow(multiplier: number, duration: number): void {
+    if (duration <= 0) return;
+    this.slowMultiplier = Math.min(this.slowMultiplier, multiplier);
+    this.slowTimer = Math.max(this.slowTimer, duration);
   }
 
   applyImpulse(direction: Vector3, speed: number, duration: number): void {
@@ -228,6 +237,15 @@ export class PlayerMovementSystem {
     }
   }
 
+  private updateSlow(deltaSeconds: number): void {
+    if (this.slowTimer > 0) {
+      this.slowTimer = Math.max(0, this.slowTimer - deltaSeconds);
+      if (this.slowTimer === 0) {
+        this.slowMultiplier = 1;
+      }
+    }
+  }
+
   private updateHorizontalVelocity(deltaSeconds: number): void {
     if (this.impulseRemaining > 0) {
       this.horizontalVelocity.copyFrom(this.impulseDirection).scaleInPlace(this.impulseSpeed);
@@ -239,7 +257,7 @@ export class PlayerMovementSystem {
     }
 
     const inputMagnitude = this.computeMoveDirection(this.desiredMove);
-    const targetSpeed = this.options.maxRunSpeed * inputMagnitude;
+    const targetSpeed = this.options.maxRunSpeed * this.slowMultiplier * inputMagnitude;
     this.desiredMove.scaleInPlace(targetSpeed);
 
     const accel = this.grounded ? this.options.acceleration : this.options.acceleration * this.options.airControl;
