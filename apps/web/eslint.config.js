@@ -7,6 +7,9 @@ import hooks from "eslint-plugin-react-hooks";
 import prettier from "eslint-config-prettier";
 
 export default [
+  {
+    ignores: ["dist/**"],
+  },
   js.configs.recommended,
   {
     files: ["**/*.{ts,tsx}"],

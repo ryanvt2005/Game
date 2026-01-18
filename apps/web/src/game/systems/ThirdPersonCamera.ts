@@ -105,6 +105,28 @@ export class ThirdPersonCamera {
     this.updatePosition(deltaSeconds);
   }
 
+  getPlanarForward(out: Vector3): Vector3 {
+    this.camera.getDirectionToRef(Vector3.Forward(), out);
+    out.y = 0;
+    if (out.lengthSquared() < 0.0001) {
+      out.set(0, 0, 1);
+    } else {
+      out.normalize();
+    }
+    return out;
+  }
+
+  getPlanarRight(out: Vector3): Vector3 {
+    this.camera.getDirectionToRef(Vector3.Right(), out);
+    out.y = 0;
+    if (out.lengthSquared() < 0.0001) {
+      out.set(1, 0, 0);
+    } else {
+      out.normalize();
+    }
+    return out;
+  }
+
   dispose(): void {
     this.unbindInputFn?.();
     this.camera.dispose();

@@ -6,6 +6,7 @@ import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Player } from "../entities/Player";
+import { PlayerMovementSystem } from "../systems/PlayerMovementSystem";
 import { ThirdPersonCamera } from "../systems/ThirdPersonCamera";
 
 type Props = {
@@ -45,6 +46,7 @@ export function GameCanvas({ className }: Props) {
     // Ground + box (graybox arena starter)
     const ground = MeshBuilder.CreateGround("ground", { width: 50, height: 50 }, scene);
     ground.position.y = 0;
+    addCollider(ground);
 
     addCollider(MeshBuilder.CreateBox("wall_north", { width: 40, height: 4, depth: 1 }, scene)).position =
       new Vector3(0, 2, 20);
@@ -72,6 +74,9 @@ export function GameCanvas({ className }: Props) {
     });
     cameraSystem.setCollisionMeshes(collisionMeshes);
 
+    const movementSystem = new PlayerMovementSystem(scene, player.getRoot(), cameraSystem);
+    movementSystem.setCollisionMeshes(collisionMeshes);
+
     let fovMode: "normal" | "dash" = "normal";
     let lockOnActive = false;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -88,6 +93,7 @@ export function GameCanvas({ className }: Props) {
 
     engine.runRenderLoop(() => {
       const deltaSeconds = engine.getDeltaTime() / 1000;
+      movementSystem.update(deltaSeconds);
       cameraSystem.update(deltaSeconds);
       scene.render();
     });
@@ -98,6 +104,7 @@ export function GameCanvas({ className }: Props) {
     return () => {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("keydown", onKeyDown);
+      movementSystem.dispose();
       cameraSystem.dispose();
       scene.dispose();
       engine.dispose();
