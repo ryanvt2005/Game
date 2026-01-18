@@ -1,10 +1,10 @@
 import type { DamageType } from "../combat/CombatTypes";
 
-export type AbilitySlot = "ability1" | "ability2" | "ability3" | "ultimate";
+export type AbilitySlot = "basic" | "ability1" | "ability2" | "ability3" | "ultimate";
 
 export type AbilityTargeting =
   | { type: "self" }
-  | { type: "directional"; range: number };
+  | { type: "directional"; range: number; width?: number };
 
 export type DamageEffect = {
   type: "damage";
@@ -19,13 +19,43 @@ export type DashEffect = {
   duration: number;
 };
 
+export type ImpulseEffect = {
+  type: "impulse";
+  speed: number;
+  duration: number;
+  direction: "forward" | "back" | "left" | "right";
+};
+
 export type ShieldEffect = {
   type: "shield";
   points: number;
   duration: number;
 };
 
-export type AbilityEffect = DamageEffect | DashEffect | ShieldEffect;
+export type BarrierEffect = {
+  type: "barrier";
+  duration: number;
+  frontalDotThreshold: number;
+  reduction: number;
+  shieldPoints: number;
+};
+
+export type OverchargeEffect = {
+  type: "overcharge";
+  duration: number;
+  damageMultiplier: number;
+  staggerMultiplier: number;
+  barrierBonus: number;
+  shieldBonus: number;
+};
+
+export type AbilityEffect =
+  | DamageEffect
+  | DashEffect
+  | ImpulseEffect
+  | ShieldEffect
+  | BarrierEffect
+  | OverchargeEffect;
 
 export type AbilityConfig = {
   id: string;
