@@ -32,7 +32,7 @@ npm install -D eslint prettier eslint-config-prettier eslint-plugin-react eslint
 npm install -D vitest jsdom @testing-library/react @testing-library/jest-dom
 
 # Tailwind (optional but recommended for UI)
-npm install -D tailwindcss postcss autoprefixer
+npm install -D tailwindcss @tailwindcss/postcss postcss autoprefixer
 
 echo "==> Writing configs and game bootstrap code"
 
@@ -50,7 +50,7 @@ EOF
 cat > postcss.config.js <<'EOF'
 export default {
   plugins: {
-    tailwindcss: {},
+    "@tailwindcss/postcss": {},
     autoprefixer: {},
   },
 };
