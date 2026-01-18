@@ -7,8 +7,10 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 export class Player {
   private readonly root: AbstractMesh;
   private readonly followTarget: TransformNode;
+  private readonly id: string;
 
   constructor(scene: Scene) {
+    this.id = "player_1";
     this.root = MeshBuilder.CreateCapsule(
       "player_body",
       { height: 2.2, radius: 0.45 },
@@ -27,5 +29,9 @@ export class Player {
 
   getFollowTarget(): TransformNode {
     return this.followTarget;
+  }
+
+  getId(): string {
+    return this.id;
   }
 }
