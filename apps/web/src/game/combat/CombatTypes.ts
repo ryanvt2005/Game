@@ -9,6 +9,7 @@ export type DamageEvent = {
   targetId: string;
   hitPoint: Vector3 | null;
   timestamp: number;
+  staggerAmount?: number;
 };
 
 export type HealthComponent = {
@@ -37,6 +38,7 @@ export type Combatant = {
   health: HealthComponent;
   energy?: EnergyComponent;
   stagger?: StaggerComponent;
+  shieldPoints?: number;
   isDead: boolean;
   setDead: () => void;
 };

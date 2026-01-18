@@ -10,6 +10,8 @@ import { Player } from "../entities/Player";
 import { TestDummy } from "../entities/TestDummy";
 import { CombatResolver } from "../combat/CombatResolver";
 import type { DamageEvent } from "../combat/CombatTypes";
+import { AbilitySystem } from "../abilities/AbilitySystem";
+import { playerLoadout } from "../abilities/AbilityConfigs";
 import { PlayerMovementSystem } from "../systems/PlayerMovementSystem";
 import { ThirdPersonCamera } from "../systems/ThirdPersonCamera";
 
@@ -91,6 +93,22 @@ export function GameCanvas({ className }: Props) {
       dummies.map((dummy) => [dummy.getMesh(), dummy])
     );
 
+    const abilitySystem = new AbilitySystem(
+      scene,
+      cameraSystem,
+      combatResolver,
+      {
+        id: player.getId(),
+        mesh: player.getRoot(),
+        energy: player.getEnergy(),
+        getShieldPoints: () => player.getShieldPoints(),
+        setShieldPoints: (points) => player.setShieldPoints(points),
+        movement: movementSystem,
+      },
+      playerLoadout,
+      dummyByMesh
+    );
+
     const attackRay = new Ray(Vector3.Zero(), Vector3.Forward(), 2.5);
     const attackOrigin = new Vector3();
     const attackDirection = new Vector3();
@@ -129,8 +147,14 @@ export function GameCanvas({ className }: Props) {
         lockOnActive = !lockOnActive;
         cameraSystem.setLockOnTarget(lockOnActive ? lockOnTarget : null);
       }
+      if (event.code === "KeyQ") {
+        abilitySystem.tryCast("ability1");
+      }
       if (event.code === "KeyE") {
-        performBasicAttack();
+        abilitySystem.tryCast("ability2");
+      }
+      if (event.code === "KeyR") {
+        abilitySystem.tryCast("ability3");
       }
     };
     const onMouseDown = (event: MouseEvent) => {
@@ -145,6 +169,7 @@ export function GameCanvas({ className }: Props) {
       const deltaSeconds = engine.getDeltaTime() / 1000;
       movementSystem.update(deltaSeconds);
       cameraSystem.update(deltaSeconds);
+      abilitySystem.update(deltaSeconds);
       for (const dummy of dummies) {
         dummy.update(combatResolver, deltaSeconds);
       }
