@@ -3,8 +3,11 @@ import { Engine } from "@babylonjs/core/Engines/engine";
 import { Scene } from "@babylonjs/core/scene";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
-import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import { Player } from "../entities/Player";
+import { PlayerMovementSystem } from "../systems/PlayerMovementSystem";
+import { ThirdPersonCamera } from "../systems/ThirdPersonCamera";
 
 type Props = {
   className?: string;
@@ -32,25 +35,66 @@ export function GameCanvas({ className }: Props) {
     // Light
     new HemisphericLight("light", new Vector3(0, 1, 0), scene);
 
-    // Camera (placeholder; will be replaced by the real third-person camera system)
-    const camera = new ArcRotateCamera(
-      "camera",
-      Math.PI / 2,
-      Math.PI / 3,
-      12,
-      new Vector3(0, 1, 0),
-      scene
-    );
-    camera.attachControl(canvas, true);
+    const player = new Player(scene);
+
+    const collisionMeshes: AbstractMesh[] = [];
+    const addCollider = (mesh: AbstractMesh) => {
+      collisionMeshes.push(mesh);
+      return mesh;
+    };
 
     // Ground + box (graybox arena starter)
-    const ground = MeshBuilder.CreateGround("ground", { width: 40, height: 40 }, scene);
+    const ground = MeshBuilder.CreateGround("ground", { width: 50, height: 50 }, scene);
     ground.position.y = 0;
+    addCollider(ground);
 
-    const box = MeshBuilder.CreateBox("box", { size: 2 }, scene);
-    box.position.y = 1;
+    addCollider(MeshBuilder.CreateBox("wall_north", { width: 40, height: 4, depth: 1 }, scene)).position =
+      new Vector3(0, 2, 20);
+    addCollider(MeshBuilder.CreateBox("wall_south", { width: 40, height: 4, depth: 1 }, scene)).position =
+      new Vector3(0, 2, -20);
+    addCollider(MeshBuilder.CreateBox("wall_east", { width: 1, height: 4, depth: 40 }, scene)).position =
+      new Vector3(20, 2, 0);
+    addCollider(MeshBuilder.CreateBox("wall_west", { width: 1, height: 4, depth: 40 }, scene)).position =
+      new Vector3(-20, 2, 0);
+
+    addCollider(MeshBuilder.CreateCylinder("pillar_a", { height: 5, diameter: 2 }, scene)).position =
+      new Vector3(6, 2.5, 6);
+    addCollider(MeshBuilder.CreateCylinder("pillar_b", { height: 5, diameter: 2 }, scene)).position =
+      new Vector3(-6, 2.5, -4);
+
+    addCollider(MeshBuilder.CreateBox("overhang", { width: 8, height: 1, depth: 6 }, scene)).position =
+      new Vector3(0, 3.5, 10);
+
+    const lockOnTarget = MeshBuilder.CreateSphere("lock_on_target", { diameter: 1.2 }, scene);
+    lockOnTarget.position = new Vector3(8, 1.2, -6);
+
+    const cameraSystem = new ThirdPersonCamera(scene, canvas, player.getFollowTarget(), {
+      followDistance: 7,
+      followHeight: 1.6,
+    });
+    cameraSystem.setCollisionMeshes(collisionMeshes);
+
+    const movementSystem = new PlayerMovementSystem(scene, player.getRoot(), cameraSystem);
+    movementSystem.setCollisionMeshes(collisionMeshes);
+
+    let fovMode: "normal" | "dash" = "normal";
+    let lockOnActive = false;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code === "KeyF") {
+        fovMode = fovMode === "normal" ? "dash" : "normal";
+        cameraSystem.setFovMode(fovMode);
+      }
+      if (event.code === "KeyL") {
+        lockOnActive = !lockOnActive;
+        cameraSystem.setLockOnTarget(lockOnActive ? lockOnTarget : null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
 
     engine.runRenderLoop(() => {
+      const deltaSeconds = engine.getDeltaTime() / 1000;
+      movementSystem.update(deltaSeconds);
+      cameraSystem.update(deltaSeconds);
       scene.render();
     });
 
@@ -59,6 +103,9 @@ export function GameCanvas({ className }: Props) {
 
     return () => {
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("keydown", onKeyDown);
+      movementSystem.dispose();
+      cameraSystem.dispose();
       scene.dispose();
       engine.dispose();
       sceneRef.current = null;
