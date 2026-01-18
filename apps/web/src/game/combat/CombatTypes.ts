@@ -10,6 +10,7 @@ export type DamageEvent = {
   hitPoint: Vector3 | null;
   timestamp: number;
   staggerAmount?: number;
+  sourcePosition?: Vector3;
 };
 
 export type HealthComponent = {
