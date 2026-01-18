@@ -1,17 +1,41 @@
 import type { Combatant, DamageEvent, StaggerComponent } from "./CombatTypes";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { CombatEvents } from "./CombatEvents";
 
 export class CombatResolver {
   readonly events = new CombatEvents();
+  private tmpToSource?: Vector3;
+  private tmpForward?: Vector3;
 
   applyDamage(target: Combatant, event: DamageEvent): void {
     if (target.isDead) return;
 
     let remainingDamage = event.amount;
-    if (target.shieldPoints && target.shieldPoints > 0) {
-      const absorbed = Math.min(target.shieldPoints, remainingDamage);
-      target.shieldPoints -= absorbed;
-      remainingDamage -= absorbed;
+    if (target.defense?.barrierActive && event.sourcePosition && target.getPosition && target.getForward) {
+      if (!this.tmpToSource || !this.tmpForward) {
+        this.tmpToSource = new Vector3();
+        this.tmpForward = new Vector3();
+      }
+      this.tmpToSource.copyFrom(event.sourcePosition).subtractInPlace(target.getPosition());
+      this.tmpToSource.y = 0;
+      if (this.tmpToSource.lengthSquared() > 0.0001) {
+        this.tmpToSource.normalize();
+        this.tmpForward.copyFrom(target.getForward());
+        this.tmpForward.y = 0;
+        if (this.tmpForward.lengthSquared() > 0.0001) {
+          this.tmpForward.normalize();
+          const dot = this.tmpForward.dot(this.tmpToSource);
+          if (dot > target.defense.frontalDotThreshold) {
+            const reduced = remainingDamage * (1 - target.defense.reduction);
+            remainingDamage = reduced;
+            if (target.defense.shieldPoints > 0) {
+              const absorbed = Math.min(target.defense.shieldPoints, remainingDamage);
+              target.defense.shieldPoints -= absorbed;
+              remainingDamage -= absorbed;
+            }
+          }
+        }
+      }
     }
 
     if (remainingDamage > 0) {

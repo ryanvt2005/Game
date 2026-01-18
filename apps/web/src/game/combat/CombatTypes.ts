@@ -33,12 +33,22 @@ export type StaggerComponent = {
   cooldownTimer: number;
 };
 
+export type DefenseComponent = {
+  barrierActive: boolean;
+  barrierTimer: number;
+  frontalDotThreshold: number;
+  reduction: number;
+  shieldPoints: number;
+};
+
 export type Combatant = {
   id: string;
   health: HealthComponent;
   energy?: EnergyComponent;
   stagger?: StaggerComponent;
-  shieldPoints?: number;
+  defense?: DefenseComponent;
   isDead: boolean;
   setDead: () => void;
+  getPosition?: () => Vector3;
+  getForward?: () => Vector3;
 };

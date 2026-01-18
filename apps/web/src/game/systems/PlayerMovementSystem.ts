@@ -116,6 +116,9 @@ export class PlayerMovementSystem {
     }
     this.impulseSpeed = speed;
     this.impulseRemaining = duration;
+    if (this.impulseRemaining > 0 && this.dashRemaining > 0) {
+      this.dashRemaining = 0;
+    }
   }
 
   private bindInput(): void {
