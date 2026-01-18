@@ -8,6 +8,8 @@ export class Player {
   private readonly root: AbstractMesh;
   private readonly followTarget: TransformNode;
   private readonly id: string;
+  private readonly energy = { max: 100, current: 100, regenRate: 12 };
+  private shieldPoints = 0;
 
   constructor(scene: Scene) {
     this.id = "player_1";
@@ -33,5 +35,17 @@ export class Player {
 
   getId(): string {
     return this.id;
+  }
+
+  getEnergy(): { max: number; current: number; regenRate: number } {
+    return this.energy;
+  }
+
+  getShieldPoints(): number {
+    return this.shieldPoints;
+  }
+
+  setShieldPoints(points: number): void {
+    this.shieldPoints = points;
   }
 }

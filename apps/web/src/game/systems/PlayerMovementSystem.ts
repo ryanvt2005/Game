@@ -57,6 +57,9 @@ export class PlayerMovementSystem {
   private dashQueued = false;
   private dashRemaining = 0;
   private dashCooldownRemaining = 0;
+  private impulseRemaining = 0;
+  private impulseSpeed = 0;
+  private readonly impulseDirection = new Vector3();
   private facingYaw = 0;
   private unbindInputFn: (() => void) | null = null;
 
@@ -89,6 +92,7 @@ export class PlayerMovementSystem {
     this.updateGrounded();
     this.applyJump();
     this.updateDash(deltaSeconds);
+    this.updateImpulse(deltaSeconds);
     this.updateHorizontalVelocity(deltaSeconds);
     this.updateVerticalVelocity(deltaSeconds);
     this.applyMovement(deltaSeconds);
@@ -100,6 +104,18 @@ export class PlayerMovementSystem {
 
   dispose(): void {
     this.unbindInputFn?.();
+  }
+
+  applyImpulse(direction: Vector3, speed: number, duration: number): void {
+    if (duration <= 0) return;
+    this.impulseDirection.copyFrom(direction);
+    if (this.impulseDirection.lengthSquared() > 0) {
+      this.impulseDirection.normalize();
+    } else {
+      this.impulseDirection.set(0, 0, 1);
+    }
+    this.impulseSpeed = speed;
+    this.impulseRemaining = duration;
   }
 
   private bindInput(): void {
@@ -203,7 +219,17 @@ export class PlayerMovementSystem {
     this.cameraSystem.setFovMode("dash");
   }
 
+  private updateImpulse(deltaSeconds: number): void {
+    if (this.impulseRemaining > 0) {
+      this.impulseRemaining = Math.max(0, this.impulseRemaining - deltaSeconds);
+    }
+  }
+
   private updateHorizontalVelocity(deltaSeconds: number): void {
+    if (this.impulseRemaining > 0) {
+      this.horizontalVelocity.copyFrom(this.impulseDirection).scaleInPlace(this.impulseSpeed);
+      return;
+    }
     if (this.dashRemaining > 0) {
       this.horizontalVelocity.copyFrom(this.dashDirection).scaleInPlace(this.options.dashSpeed);
       return;

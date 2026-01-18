@@ -7,15 +7,24 @@ export class CombatResolver {
   applyDamage(target: Combatant, event: DamageEvent): void {
     if (target.isDead) return;
 
-    target.health.currentHealth = Math.max(
-      0,
-      Math.min(target.health.maxHealth, target.health.currentHealth - event.amount)
-    );
+    let remainingDamage = event.amount;
+    if (target.shieldPoints && target.shieldPoints > 0) {
+      const absorbed = Math.min(target.shieldPoints, remainingDamage);
+      target.shieldPoints -= absorbed;
+      remainingDamage -= absorbed;
+    }
+
+    if (remainingDamage > 0) {
+      target.health.currentHealth = Math.max(
+        0,
+        Math.min(target.health.maxHealth, target.health.currentHealth - remainingDamage)
+      );
+    }
 
     this.events.emitHit(event, target);
 
     if (target.stagger) {
-      this.applyStagger(target, event.amount);
+      this.applyStagger(target, event.staggerAmount ?? event.amount);
     }
 
     if (target.health.currentHealth <= 0 && !target.isDead) {
