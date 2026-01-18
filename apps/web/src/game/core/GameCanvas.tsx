@@ -14,10 +14,16 @@ import { PlayerMovementSystem } from "../systems/PlayerMovementSystem";
 import { ThirdPersonCamera } from "../systems/ThirdPersonCamera";
 import { EnemyAISystem } from "../systems/EnemyAISystem";
 import { gruntConfig, bruiserConfig, controllerConfig } from "../entities/enemies/EnemyConfigs";
+import { MissionRunner } from "../missions/MissionRunner";
+import { missionRegistry } from "../missions/MissionRegistry";
+import type { MissionHudState } from "../missions/MissionTypes";
 
 type Props = {
   className?: string;
   onHudUpdate?: (state: HudState) => void;
+  onMissionUpdate?: (state: MissionHudState | null) => void;
+  missionId?: string;
+  missionRunId?: number;
 };
 
 type HudState = {
@@ -31,15 +37,29 @@ type HudState = {
   barrierActive: boolean;
 };
 
-export function GameCanvas({ className, onHudUpdate }: Props) {
+export function GameCanvas({ className, onHudUpdate, onMissionUpdate, missionId, missionRunId }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<Engine | null>(null);
   const sceneRef = useRef<Scene | null>(null);
   const hudCallbackRef = useRef<Props["onHudUpdate"]>(null);
+  const missionRunnerRef = useRef<MissionRunner | null>(null);
+  const missionIdRef = useRef<string>(missionId ?? missionRegistry[0].id);
 
   useEffect(() => {
     hudCallbackRef.current = onHudUpdate ?? null;
   }, [onHudUpdate]);
+
+  const missionCallbackRef = useRef<Props["onMissionUpdate"]>(null);
+  useEffect(() => {
+    missionCallbackRef.current = onMissionUpdate ?? null;
+  }, [onMissionUpdate]);
+
+  useEffect(() => {
+    if (!missionRunnerRef.current) return;
+    const id = missionId ?? missionRegistry[0].id;
+    missionRunnerRef.current.startMission(id);
+    missionIdRef.current = id;
+  }, [missionId, missionRunId]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -130,15 +150,89 @@ export function GameCanvas({ className, onHudUpdate }: Props) {
     );
 
     const enemySystem = new EnemyAISystem(scene, combatResolver, playerCombatant, movementSystem);
-    const spawnWave = () => {
-      enemySystem.clear();
-      enemySystem.spawnEnemy(gruntConfig, new Vector3(-10, 1.1, -6), ["hardened"]);
-      enemySystem.spawnEnemy(gruntConfig, new Vector3(-8, 1.1, -2));
-      enemySystem.spawnEnemy(gruntConfig, new Vector3(-6, 1.1, 2));
-      enemySystem.spawnEnemy(bruiserConfig, new Vector3(10, 1.1, 6), ["volatile"]);
-      enemySystem.spawnEnemy(controllerConfig, new Vector3(6, 1.1, -10), ["adaptive"]);
+    const activeEnemies: { id: string; isAlive: () => boolean }[] = [];
+    const activeDevices: {
+      id: string;
+      position: Vector3;
+      radius: number;
+      mesh: AbstractMesh;
+      isDisabled: boolean;
+    }[] = [];
+    const areaMarkers: AbstractMesh[] = [];
+    const spawnEnemy = (archetype: "grunt" | "bruiser" | "controller", count: number, modifiers: string[] = []) => {
+      const positions = [
+        new Vector3(-10, 1.1, -6),
+        new Vector3(-8, 1.1, -2),
+        new Vector3(-6, 1.1, 2),
+        new Vector3(10, 1.1, 6),
+        new Vector3(6, 1.1, -10),
+      ];
+      const config =
+        archetype === "bruiser" ? bruiserConfig : archetype === "controller" ? controllerConfig : gruntConfig;
+      for (let i = 0; i < count; i += 1) {
+        const position = positions[(activeEnemies.length + i) % positions.length];
+        const enemy = enemySystem.spawnEnemy(config, position, modifiers as never);
+        activeEnemies.push({ id: enemy.getCombatant().id, isAlive: () => enemy.isAlive() });
+      }
     };
-    spawnWave();
+    const clearEnemies = () => {
+      enemySystem.clear();
+      activeEnemies.length = 0;
+    };
+    const spawnDevice = (position: Vector3, radius: number, id: string) => {
+      const mesh = MeshBuilder.CreateBox(`device_${id}`, { size: 1.2 }, scene);
+      mesh.position.copyFrom(position);
+      mesh.isPickable = true;
+      mesh.checkCollisions = false;
+      const device = { id, position, radius, mesh, isDisabled: false };
+      activeDevices.push(device);
+      return {
+        id,
+        position,
+        radius,
+        isDisabled: false,
+        disable: () => {
+          device.isDisabled = true;
+          mesh.scaling.y = 0.3;
+        },
+      };
+    };
+    const clearDevices = () => {
+      for (const device of activeDevices) {
+        device.mesh.dispose();
+      }
+      activeDevices.length = 0;
+    };
+    const missionRunner = new MissionRunner(
+      {
+        scene,
+        playerPosition: player.getRoot().position,
+        playerHealth: player.getCombatant().health,
+        input: { interactPressed: false },
+        spawnDevice,
+        clearDevices,
+        spawnAreaMarker: (position, radius, id) => {
+          const ring = MeshBuilder.CreateTorus(`area_${id}`, { diameter: radius * 2, thickness: 0.12 }, scene);
+          ring.position.copyFrom(position);
+          ring.position.y = 0.1;
+          ring.rotation.x = Math.PI / 2;
+          ring.isPickable = false;
+          areaMarkers.push(ring);
+        },
+        clearAreaMarkers: () => {
+          for (const marker of areaMarkers) {
+            marker.dispose();
+          }
+          areaMarkers.length = 0;
+        },
+        spawnEnemies: (archetype, count, modifiers) => spawnEnemy(archetype, count, modifiers),
+        getActiveEnemies: () => activeEnemies,
+        clearEnemies,
+      },
+      missionRegistry
+    );
+    missionRunnerRef.current = missionRunner;
+    missionRunner.startMission(missionIdRef.current);
 
     let fovMode: "normal" | "dash" = "normal";
     let lockOnActive = false;
@@ -194,7 +288,10 @@ export function GameCanvas({ className, onHudUpdate }: Props) {
         });
       }
       if (event.code === "KeyP") {
-        spawnWave();
+        missionRunner.startMission(missionIdRef.current ?? missionRegistry[0].id);
+      }
+      if (event.code === "KeyG") {
+        missionRunner.setInteractPressed(true);
       }
     };
     const onMouseDown = (event: MouseEvent) => {
@@ -218,6 +315,8 @@ export function GameCanvas({ className, onHudUpdate }: Props) {
         dummy.update(combatResolver, deltaSeconds);
       }
       enemySystem.update(deltaSeconds);
+      missionRunner.update(deltaSeconds);
+      missionRunner.consumeInteract();
       if (hudCallbackRef.current) {
         hudTimer += deltaSeconds;
         if (hudTimer >= 0.1) {
@@ -235,6 +334,7 @@ export function GameCanvas({ className, onHudUpdate }: Props) {
             overchargeActive: abilitySystem.isOverchargeActive(),
             barrierActive: abilitySystem.isBarrierActive(),
           });
+          missionCallbackRef.current?.(missionRunner.getHudState());
         }
       }
       scene.render();
@@ -248,6 +348,10 @@ export function GameCanvas({ className, onHudUpdate }: Props) {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("mousedown", onMouseDown);
       enemySystem.clear();
+      clearDevices();
+      areaMarkers.forEach((marker) => marker.dispose());
+      areaMarkers.length = 0;
+      missionRunnerRef.current = null;
       movementSystem.dispose();
       cameraSystem.dispose();
       scene.dispose();
