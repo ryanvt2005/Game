@@ -5,7 +5,11 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import { Ray } from "@babylonjs/core/Culling/ray";
 import { Player } from "../entities/Player";
+import { TestDummy } from "../entities/TestDummy";
+import { CombatResolver } from "../combat/CombatResolver";
+import type { DamageEvent } from "../combat/CombatTypes";
 import { PlayerMovementSystem } from "../systems/PlayerMovementSystem";
 import { ThirdPersonCamera } from "../systems/ThirdPersonCamera";
 
@@ -36,6 +40,7 @@ export function GameCanvas({ className }: Props) {
     new HemisphericLight("light", new Vector3(0, 1, 0), scene);
 
     const player = new Player(scene);
+    const combatResolver = new CombatResolver();
 
     const collisionMeshes: AbstractMesh[] = [];
     const addCollider = (mesh: AbstractMesh) => {
@@ -77,6 +82,42 @@ export function GameCanvas({ className }: Props) {
     const movementSystem = new PlayerMovementSystem(scene, player.getRoot(), cameraSystem);
     movementSystem.setCollisionMeshes(collisionMeshes);
 
+    const dummies = [
+      new TestDummy(scene, combatResolver, new Vector3(4, 1.2, 2), "dummy_a"),
+      new TestDummy(scene, combatResolver, new Vector3(-3, 1.2, -6), "dummy_b"),
+      new TestDummy(scene, combatResolver, new Vector3(0, 1.2, 12), "dummy_c"),
+    ];
+    const dummyByMesh = new Map<AbstractMesh, TestDummy>(
+      dummies.map((dummy) => [dummy.getMesh(), dummy])
+    );
+
+    const attackRay = new Ray(Vector3.Zero(), Vector3.Forward(), 2.5);
+    const attackOrigin = new Vector3();
+    const attackDirection = new Vector3();
+    const performBasicAttack = () => {
+      const camera = scene.activeCamera;
+      if (!camera) return;
+      attackOrigin.copyFrom(camera.globalPosition);
+      const forwardRay = camera.getForwardRay(1);
+      attackDirection.copyFrom(forwardRay.direction);
+      attackRay.origin.copyFrom(attackOrigin);
+      attackRay.direction.copyFrom(attackDirection);
+      const hit = scene.pickWithRay(attackRay, (mesh) => dummyByMesh.has(mesh));
+      if (!hit?.hit || !hit.pickedMesh) return;
+      const dummy = dummyByMesh.get(hit.pickedMesh);
+      if (!dummy) return;
+
+      const event: DamageEvent = {
+        amount: 10,
+        type: "physical",
+        sourceId: player.getId(),
+        targetId: dummy.getCombatant().id,
+        hitPoint: hit.pickedPoint ?? null,
+        timestamp: performance.now(),
+      };
+      combatResolver.applyDamage(dummy.getCombatant(), event);
+    };
+
     let fovMode: "normal" | "dash" = "normal";
     let lockOnActive = false;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -88,13 +129,25 @@ export function GameCanvas({ className }: Props) {
         lockOnActive = !lockOnActive;
         cameraSystem.setLockOnTarget(lockOnActive ? lockOnTarget : null);
       }
+      if (event.code === "KeyE") {
+        performBasicAttack();
+      }
+    };
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.button === 0) {
+        performBasicAttack();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("mousedown", onMouseDown);
 
     engine.runRenderLoop(() => {
       const deltaSeconds = engine.getDeltaTime() / 1000;
       movementSystem.update(deltaSeconds);
       cameraSystem.update(deltaSeconds);
+      for (const dummy of dummies) {
+        dummy.update(combatResolver, deltaSeconds);
+      }
       scene.render();
     });
 
@@ -104,6 +157,7 @@ export function GameCanvas({ className }: Props) {
     return () => {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("mousedown", onMouseDown);
       movementSystem.dispose();
       cameraSystem.dispose();
       scene.dispose();
